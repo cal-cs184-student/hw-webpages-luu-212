@@ -53,18 +53,16 @@
     <div class="container">
       <h1>CS184/284A Spring 2025 Homework 1 Write-Up</h1>
 
-      <div class="meta">
-        <div class="row"><b>Names:</b> <span class="fill">Fill in</span></div>
-        <div class="row">
-          <span class="pill"><b>Webpage</b></span> <span class="fill">Fill in</span>
-          <span class="pill"><b>GitHub</b></span> <span class="fill">Fill in</span>
-        </div>
-      </div>
+      <div style="text-align: center;">Names: Lu JIN & Zihan YI</div>
 
-      <figure>
-        <img src="images/cover.png" alt="Cover image" style="width:50%" />
-        <figcaption><b>Cover image</b></figcaption>
-      </figure>
+    <br>
+
+    Link to webpage: (TODO) <a href="https://cs184.eecs.berkeley.edu/sp26/hw/hw1/">cs184.eecs.berkeley.edu/sp26/hw/hw1/</a>
+    
+    <br>
+
+    Link to GitHub repository: (TODO) <a href="https://github.com/cal-cs184-student/hw1-rasterizer-111222333">github.com/cal-cs184-student/hw1-rasterizer-111222333</a>
+
 
       <h2>Overview</h2>
   <p>
@@ -306,20 +304,17 @@ per interior region, confirming the effectiveness of the optimization.
 </div>
 
       <h2>Task 2: Antialiasing by Supersampling</h2>
-
-      <h3 class="qtitle">Why is supersampling useful?</h3>
-      <div class="card">
+<h3 class="qtitle">Why is supersampling useful?</h3>
+<div class="card">
         Supersampling anti-aliasing reduces jagged artifacts along triangle edges during rasterization. With single-sample rendering, each pixel’s
         color is determined only by whether its center lies inside the triangle, producing binary coverage decisions and stair-step edges.
         Supersampling subdivides each pixel into multiple sub-samples, evaluates coverage per sub-sample, and averages them so edge pixels blend
         smoothly based on fractional coverage.
       </div>
-
-      <h3 class="qtitle">Pipeline modifications</h3>
-
-      <h3><b><code>rasterize_triangle</code></b></h3>
-      <p>I compute the triangle’s axis-aligned bounding box and clamp it to the framebuffer:</p>
-      <div class="card">
+<h3 class="qtitle">Pipeline modifications</h3>
+<h3><b><code>rasterize_triangle</code></b></h3>
+<p>I compute the triangle’s axis-aligned bounding box and clamp it to the framebuffer:</p>
+<div class="card">
         \[
           x_{\min}=\max\bigl(0,\lfloor\min(x_0,x_1,x_2)\rfloor\bigr),\quad
           x_{\max}=\min\bigl(W-1,\lceil\max(x_0,x_1,x_2)\rceil\bigr)
@@ -329,18 +324,16 @@ per interior region, confirming the effectiveness of the optimization.
           y_{\max}=\min\bigl(H-1,\lceil\max(y_0,y_1,y_2)\rceil\bigr)
         \]
       </div>
-
-      <p>For coverage testing, I use the edge function:</p>
-      <div class="card">
+<p>For coverage testing, I use the edge function:</p>
+<div class="card">
         \[
           E(A,B,P)=(B_x-A_x)(P_y-A_y)-(B_y-A_y)(P_x-A_x)
         \]
       </div>
-
-      <p>
+<p>
         With <code>sample_rate</code> (a perfect square), I use a \(\sqrt{\mathtt{sample\_rate}}\times\sqrt{\mathtt{sample\_rate}}\) sub-sample grid:
       </p>
-      <div class="card">
+<div class="card">
         \[
           n = \sqrt{\mathtt{sample\_rate}},\qquad \Delta = \frac{1}{n}
         \]
@@ -348,20 +341,17 @@ per interior region, confirming the effectiveness of the optimization.
           P_{sx,sy} = \left(x + (sx+0.5)\Delta,\ y + (sy+0.5)\Delta\right)
         \]
       </div>
-
-      <p>For each sub-sample point \(P\), I compute three edge values:</p>
-      <div class="card">
+<p>For each sub-sample point \(P\), I compute three edge values:</p>
+<div class="card">
         \[
           w_0=E((x_0,y_0),(x_1,y_1),P),\quad
           w_1=E((x_1,y_1),(x_2,y_2),P),\quad
           w_2=E((x_2,y_2),(x_0,y_0),P)
         \]
       </div>
-
-      <p>I treat \(P\) as inside the triangle (including boundaries) if the three values do not contain both positive and negative signs.</p>
-
-      <p>I store results in a linear supersample buffer. For pixel \((x,y)\), the base and sub indices are:</p>
-      <div class="card">
+<p>I treat \(P\) as inside the triangle (including boundaries) if the three values do not contain both positive and negative signs.</p>
+<p>I store results in a linear supersample buffer. For pixel \((x,y)\), the base and sub indices are:</p>
+<div class="card">
         \[
           \mathtt{base\_idx} = y\cdot W\cdot \mathtt{sample\_rate} + x\cdot \mathtt{sample\_rate},\qquad
           \mathtt{sub\_idx} = sy\cdot n + sx
@@ -370,10 +360,9 @@ per interior region, confirming the effectiveness of the optimization.
           \mathtt{sample\_buffer}[\mathtt{base\_idx} + \mathtt{sub\_idx}] \leftarrow \mathtt{color}
         \]
       </div>
-
-      <h3><b><code>fill_pixel</code></b></h3>
-      <p>For points and lines, I fill all sub-samples of the pixel with the same color:</p>
-      <div class="card">
+<h3><b><code>fill_pixel</code></b></h3>
+<p>For points and lines, I fill all sub-samples of the pixel with the same color:</p>
+<div class="card">
         \[
           \mathtt{base\_idx} = y\cdot W\cdot \mathtt{sample\_rate} + x\cdot \mathtt{sample\_rate}
         \]
@@ -382,43 +371,70 @@ per interior region, confirming the effectiveness of the optimization.
           \mathtt{sample\_buffer}[\mathtt{base\_idx} + s] \leftarrow c
         \]
       </div>
-
-      <h3><b><code>resolve_to_framebuffer</code></b></h3>
-      <p>I average sub-samples to produce the final pixel color:</p>
-      <div class="card">
+<h3><b><code>resolve_to_framebuffer</code></b></h3>
+<p>I average sub-samples to produce the final pixel color:</p>
+<div class="card">
         \[
           C(x,y)=\frac{1}{\mathtt{sample\_rate}}
           \sum_{sy=0}^{n-1}\sum_{sx=0}^{n-1}
           \mathtt{sample\_buffer}[\mathtt{base\_idx} + sy\cdot n + sx]
         \]
       </div>
-
-      <p>Then I write to the 8-bit framebuffer:</p>
-      <div class="card">
+<p>Then I write to the 8-bit framebuffer:</p>
+<div class="card">
         \[
           \mathtt{rgb}[3(yW+x)+k] \leftarrow 255\cdot C_k(x,y),\quad k\in\{0,1,2\}
         \]
       </div>
-
-      <h3 class="qtitle">Explain the observed results</h3>
-      <div class="card">
+<h3 class="qtitle">Explain the observed results</h3>
+<div class="card">
         With <code>sample_rate = 1</code>, thin edges look jagged because each pixel is classified by a single center sample. As the sample rate
         increases, pixels near edges become partially covered and blend smoothly with the background, reducing aliasing—especially for thin features
         and sharp tips.
       </div>
-
-      <figure>
-        <img src="images/task2_sr1.png" alt="Task 2 sample_rate 1" />
-        <figcaption><b>Task 2</b> — sample_rate = 1</figcaption>
-      </figure>
-      <figure>
-        <img src="images/task2_sr4.png" alt="Task 2 sample_rate 4" />
-        <figcaption><b>Task 2</b> — sample_rate = 4</figcaption>
-      </figure>
-      <figure>
-        <img src="images/task2_sr16.png" alt="Task 2 sample_rate 16" />
-        <figcaption><b>Task 2</b> — sample_rate = 16</figcaption>
-      </figure>
+<div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
+<figure style="text-align: center;">
+<img alt="Task 2 sample_rate 1" src="images/task2_sr1.png"/>
+<figcaption><b>Task 2</b> — sample_rate = 1</figcaption>
+</figure>
+<figure style="text-align: center;">
+<img alt="Task 2 sample_rate 4" src="images/task2_sr4.png"/>
+<figcaption><b>Task 2</b> — sample_rate = 4</figcaption>
+</figure>
+<figure style="text-align: center;">
+<img alt="Task 2 sample_rate 16" src="images/task2_sr16.png"/>
+<figcaption><b>Task 2</b> — sample_rate = 16</figcaption>
+</figure>
+</div>
+<h3 class="qtitle">Task 2 Extra Credit: Jittered Stratified Supersampling</h3>
+<div class="card">
+  In addition to grid-based supersampling, I implemented an alternative antialiasing method: <b>jittered stratified sampling</b>.
+  The original approach samples the center of each subcell:
+  \[
+    P_{sx,sy} = \left(x + (sx+0.5)\Delta,\ y + (sy+0.5)\Delta\right),\quad \Delta=\frac{1}{n},\ n=\sqrt{\mathtt{sample\_rate}}.
+  \]
+  In the jittered method, I keep the same \(n\times n\) stratification, but choose a randomized point inside each stratum:
+  \[
+    P_{sx,sy} = \left(x + (sx+r_x)\Delta,\ y + (sy+r_y)\Delta\right),\quad r_x,r_y\in[0,1).
+  \]
+  To make results reproducible for comparison, \(r_x\) and \(r_y\) are generated deterministically from \((x,y,sx,sy)\) using a simple hash.
+  Compared to the regular grid, jittering breaks the sampling lattice and reduces structured aliasing artifacts (e.g., moiré-like patterns),
+  converting them into more uniformly distributed noise that is typically less noticeable.
+</div>
+<div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
+<figure style="text-align: center;">
+<img alt="Jittered sampling sample_rate 1" src="images/jitter_rate1.png"/>
+<figcaption><b>Jittered</b> — sample_rate = 1</figcaption>
+</figure>
+<figure style="text-align: center;">
+<img alt="Jittered sampling sample_rate 4" src="images/jitter_rate4.png"/>
+<figcaption><b>Jittered</b> — sample_rate = 4</figcaption>
+</figure>
+<figure style="text-align: center;">
+<img alt="Jittered sampling sample_rate 16" src="images/jitter_rate16.png"/>
+<figcaption><b>Jittered</b> — sample_rate = 16</figcaption>
+</figure>
+</div>
 
       <h2>Task 3: Transforms</h2>
       <h3 class="qtitle">Implementing SVG Transforms</h3>
@@ -574,16 +590,14 @@ per interior region, confirming the effectiveness of the optimization.
 
 
       <h2>Task 4: Barycentric coordinates</h2>
-
-      <h3 class="qtitle">Explain barycentric coordinates in your own words</h3>
-      <div class="card">
+<h3 class="qtitle">Explain barycentric coordinates in your own words</h3>
+<div class="card">
         Barycentric coordinates represent any point inside a triangle as three weights \((\alpha,\beta,\gamma)\) over the triangle’s vertices.
         They satisfy \(\alpha+\beta+\gamma=1\). A point lies inside or on the triangle iff \(\alpha,\beta,\gamma\ge 0\). This enables smooth
         interpolation of vertex attributes such as color and texture coordinates across the triangle.
-      </div>
-
-      <p>Using the same edge function, let \(\text{area}=E((x_0,y_0),(x_1,y_1),(x_2,y_2))\). For a point \(P\):</p>
-      <div class="card">
+      </div><p>To visualize this, I rendered a single triangle with one red, one green, and one blue vertex; the interior colors are produced by barycentric interpolation of the vertex colors.</p><figure><img alt="Task 4 my_task4" src="images/my_task4.png"/><figcaption><b>Task 4</b> — my_task4: RGB vertices smoothly blended by barycentric interpolation</figcaption></figure>
+<p>Using the same edge function, let \(\text{area}=E((x_0,y_0),(x_1,y_1),(x_2,y_2))\). For a point \(P\):</p>
+<div class="card">
         \[
           e_0=E((x_1,y_1),(x_2,y_2),P),\quad
           e_1=E((x_2,y_2),(x_0,y_0),P),\quad
@@ -598,11 +612,10 @@ per interior region, confirming the effectiveness of the optimization.
           C(P)=\alpha C_0+\beta C_1+\gamma C_2
         \]
       </div>
-
-      <figure>
-        <img src="images/task4_barycentric.png" alt="Task 4 barycentric" />
-        <figcaption><b>Task 4</b> — barycentric color interpolation</figcaption>
-      </figure>
+<figure>
+<img alt="Task 4 barycentric" src="images/task4_barycentric.png"/>
+<figcaption><b>Task 4</b> — barycentric color interpolation</figcaption>
+</figure>
 
       <h2>Task 5: Pixel sampling for texture mapping</h2>
 
@@ -747,32 +760,28 @@ per interior region, confirming the effectiveness of the optimization.
       </div>
 
       <h2>Task 6: Level Sampling with mipmaps for texture mapping</h2>
-
-      <h3 class="qtitle">Explain level sampling and how you implemented it</h3>
-      <div class="card">
+<h3 class="qtitle">Explain level sampling and how you implemented it</h3>
+<div class="card">
         Level sampling selects an appropriate mipmap level based on the texture footprint of a screen pixel. This reduces aliasing during texture
         minification and improves efficiency by sampling from lower-resolution prefiltered textures when appropriate.
       </div>
-
-      <h3><b><code>Texture::get_level</code></b></h3>
-      <p>Given texture coordinates at the current sample and at neighboring screen positions, I compute UV-space differentials:</p>
-      <div class="card">
+<h3><b><code>Texture::get_level</code></b></h3>
+<p>Given texture coordinates at the current sample and at neighboring screen positions, I compute UV-space differentials:</p>
+<div class="card">
         \[
           \Delta\mathbf{uv}_x = \mathbf{uv}_{dx}-\mathbf{uv},\qquad
           \Delta\mathbf{uv}_y = \mathbf{uv}_{dy}-\mathbf{uv}
         \]
       </div>
-
-      <p>I scale them by the level-0 texture dimensions \((w,h)\) to convert to texel-space differentials:</p>
-      <div class="card">
+<p>I scale them by the level-0 texture dimensions \((w,h)\) to convert to texel-space differentials:</p>
+<div class="card">
         \[
           \Delta\mathbf{t}_x = (w\Delta u_x,\ h\Delta v_x),\qquad
           \Delta\mathbf{t}_y = (w\Delta u_y,\ h\Delta v_y)
         \]
       </div>
-
-      <p>The footprint estimate and continuous level are:</p>
-      <div class="card">
+<p>The footprint estimate and continuous level are:</p>
+<div class="card">
         \[
           \rho = \max\left(\lVert\Delta\mathbf{t}_x\rVert,\ \lVert\Delta\mathbf{t}_y\rVert\right),\qquad
           \rho\leftarrow\max(\rho,1)
@@ -781,19 +790,17 @@ per interior region, confirming the effectiveness of the optimization.
           \ell = \log_2(\rho),\qquad \ell\leftarrow \mathrm{clamp}(\ell,0,L_{\max})
         \]
       </div>
-
-      <h3><b><code>Texture::sample</code></b></h3>
-      <p>I implemented three level sampling strategies:</p>
-      <div class="card">
-        <div class="compare">
-          <div><b>L_ZERO</b></div><div>Always sample from mip level 0.</div>
-          <div><b>L_NEAREST</b></div><div>Choose \(\mathrm{round}(\ell)\).</div>
-          <div><b>L_LINEAR</b></div><div>Trilinear interpolation between \(\lfloor\ell\rfloor\) and \(\lfloor\ell\rfloor+1\).</div>
-        </div>
-      </div>
-
-      <p>For trilinear interpolation:</p>
-      <div class="card">
+<h3><b><code>Texture::sample</code></b></h3>
+<p>I implemented three level sampling strategies:</p>
+<div class="card">
+<div class="compare">
+<div><b>L_ZERO</b></div><div>Always sample from mip level 0.</div>
+<div><b>L_NEAREST</b></div><div>Choose \(\mathrm{round}(\ell)\).</div>
+<div><b>L_LINEAR</b></div><div>Trilinear interpolation between \(\lfloor\ell\rfloor\) and \(\lfloor\ell\rfloor+1\).</div>
+</div>
+</div>
+<p>For trilinear interpolation:</p>
+<div class="card">
         \[
           \ell_0=\lfloor\ell\rfloor,\quad \ell_1=\ell_0+1,\quad t=\ell-\ell_0
         \]
@@ -801,39 +808,65 @@ per interior region, confirming the effectiveness of the optimization.
           C=(1-t)C(\ell_0)+tC(\ell_1)
         \]
       </div>
-
-      <h3 class="qtitle">Comparisons</h3>
-      <div class="card">
-        <div class="compare">
-          <div><code>P_NEAREST + L_ZERO</code></div><div>Nearest at level 0; strongest aliasing/shimmering.</div>
-          <div><code>P_LINEAR + L_ZERO</code></div><div>Bilinear at level 0; smoother but unstable without mipmaps.</div>
-          <div><code>P_NEAREST + L_NEAREST</code></div><div>Nearest mip level; reduced aliasing with possible level transitions.</div>
-          <div><code>P_LINEAR + L_NEAREST</code></div><div>Trilinear; smoothest and most stable result.</div>
-        </div>
-      </div>
-
-      <table>
-        <tr>
-          <td>
-            <img src="images/task6_pnearest_lzero.png" alt="Task 6 P_NEAREST L_ZERO" />
-            <figcaption><b>Task 6</b> — P_NEAREST + L_ZERO</figcaption>
-          </td>
-          <td>
-            <img src="images/task6_plinear_lzero.png" alt="Task 6 P_LINEAR L_ZERO" />
-            <figcaption><b>Task 6</b> — P_LINEAR + L_ZERO</figcaption>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <img src="images/task6_pnearest_lnearest.png" alt="Task 6 P_NEAREST L_NEAREST" />
-            <figcaption><b>Task 6</b> — P_NEAREST + L_NEAREST</figcaption>
-          </td>
-          <td>
-            <img src="images/task6_plinear_lnearest.png" alt="Task 6 P_LINEAR L_NEAREST" />
-            <figcaption><b>Task 6</b> — P_LINEAR + L_NEAREST</figcaption>
-          </td>
-        </tr>
-      </table>
+<h3 class="qtitle">Comparisons</h3>
+<div class="card">
+<div class="compare">
+<div><code>P_NEAREST + L_ZERO</code></div><div>Nearest at level 0; strongest aliasing/shimmering.</div>
+<div><code>P_LINEAR + L_ZERO</code></div><div>Bilinear at level 0; smoother but unstable without mipmaps.</div>
+<div><code>P_NEAREST + L_NEAREST</code></div><div>Nearest mip level; reduced aliasing with possible level transitions.</div>
+<div><code>P_LINEAR + L_NEAREST</code></div><div>Trilinear; smoothest and most stable result.</div>
+</div>
+</div>
+<table>
+<tr>
+<td>
+<img alt="Task 6 P_NEAREST L_ZERO" src="images/task6_pnearest_lzero.png"/>
+<figcaption><b>Task 6</b> — P_NEAREST + L_ZERO</figcaption>
+</td>
+<td>
+<img alt="Task 6 P_LINEAR L_ZERO" src="images/task6_plinear_lzero.png"/>
+<figcaption><b>Task 6</b> — P_LINEAR + L_ZERO</figcaption>
+</td>
+</tr>
+<tr>
+<td>
+<img alt="Task 6 P_NEAREST L_NEAREST" src="images/task6_pnearest_lnearest.png"/>
+<figcaption><b>Task 6</b> — P_NEAREST + L_NEAREST</figcaption>
+</td>
+<td>
+<img alt="Task 6 P_LINEAR L_NEAREST" src="images/task6_plinear_lnearest.png"/>
+<figcaption><b>Task 6</b> — P_LINEAR + L_NEAREST</figcaption>
+</td>
+</tr>
+</table>
+<h3 class="qtitle">Extra Credit: Anisotropic filtering</h3>
+<div class="card">
+        I implemented a simple anisotropic filtering mode to better handle highly elongated pixel footprints in texture space (e.g., grazing-angle minification).
+        Using the UV differentials already computed for Task 6, I estimate the footprint’s major/minor axis lengths in <i>texel space</i> and take multiple samples
+        along the major axis, then average the results.
+        <br><br>
+        Let \( \Delta\mathbf{uv}_x = \mathbf{uv}(x+1,y)-\mathbf{uv}(x,y) \) and \( \Delta\mathbf{uv}_y = \mathbf{uv}(x,y+1)-\mathbf{uv}(x,y) \).
+        Converting to texel space (using level-0 texture size \(W\times H\)):
+        \[
+          \Delta\mathbf{t}_x = (W\Delta u_x,\; H\Delta v_x),\quad
+          \Delta\mathbf{t}_y = (W\Delta u_y,\; H\Delta v_y)
+        \]
+        Then \(L_{major}=\max(\|\Delta\mathbf{t}_x\|,\|\Delta\mathbf{t}_y\|)\), \(L_{minor}=\min(\|\Delta\mathbf{t}_x\|,\|\Delta\mathbf{t}_y\|)\),
+        and I choose \(N=\lceil L_{major}/L_{minor}\rceil\) (clamped to a small max, e.g. 8). I sample \(N\) points along the major axis and average:
+        \[
+          \mathbf{c} = \frac{1}{N}\sum_{i=1}^{N} \mathrm{Trilinear}(\mathbf{uv} + a_i\,\Delta\mathbf{uv}_{major})
+        \]
+        This mode is selectable without changing the existing sampling modes: it activates only under <code>P_LINEAR + L_LINEAR</code> when running with
+        <code>CGL_ANISO=1</code>.
+      </br></br></div>
+<table>
+<tr>
+<td>
+<img alt="Task 6 Extra Credit Anisotropic filtering" src="images/anisotropic.png"/>
+<figcaption><b>Task 6 (Extra Credit)</b> — Anisotropic filtering (enabled with <code>CGL_ANISO=1</code>)</figcaption>
+</td>
+</tr>
+</table>
 
       <h2>Task 7: Extra Credit</h2>
 
