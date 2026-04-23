@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+
+<style>
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: linear-gradient(135deg, #0f1117, #1a1d26);
+  color: #e6e6e6;
+  margin: 0;
+}
+
+.container {
+  width: 75%;
+  margin: auto;
+  padding: 50px 0;
+}
+
+h1 {
+  text-align: center;
+  font-size: 40px;
+}
+
+h2 {
+  margin-top: 70px;
+  border-left: 5px solid #4da3ff;
+  padding-left: 15px;
+}
+
+p {
+  line-height: 1.7;
+}
+
+ul {
+  margin-left: 20px;
+}
+
+.image-row {
+  display: flex;
+  justify-content: center;
+  gap: 25px;
+  margin: 30px 0;
+  flex-wrap: wrap;
+}
+
+.image-box {
+  text-align: center;
+  transition: 0.3s;
+}
+
+.image-box:hover {
+  transform: scale(1.05);
+}
+
+img {
+  width: 320px;
+  border-radius: 12px;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+}
+
+.caption {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #bbb;
+}
+
+.gif {
+  width: 480px;
+}
+
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h1>CS184 Homework 4 Write-Up</h1>
+
+<div style="text-align: center;">Names: Zihan Yi & Lu Jin</div>
+
+    <br>
+
+    Link to webpage: <a href="https://cal-cs184-student.github.io/hw-webpages-luu-212/">https://cal-cs184-student.github.io/hw-webpages-luu-212/</a>
+
+    <br>
+
+    Link to GitHub repository:  <a href="https://github.com/cal-cs184-student/hw4-clothsim-hw4-lu">https://github.com/cal-cs184-student/hw4-clothsim-hw4-lu</a>
+
+<figure style="text-align: center;">
+      <img src="images/part5_mirror_cloth.png" alt="Cloth draped over sphere" style="width:70%"/>
+    </figure>
+
+    <h2>Overview</h2>
+
+<p>
+In this assignment, we built a physically-based cloth simulation system from scratch using a mass-spring model, numerical integration, collision handling, and GPU-based shading techniques. Starting from a discrete grid of point masses connected by springs, we simulated realistic cloth behavior under external forces such as gravity, wind, and user interaction.
+</p>
+
+<p>
+The implementation progressed through several major components. First, we constructed the structural, shearing, and bending spring system to define the physical constraints of the cloth. Then, we implemented force accumulation and Verlet integration to simulate motion over time, along with constraint enforcement to maintain stability. Next, we extended the system to support collisions with external objects such as spheres and planes, as well as efficient self-collision handling using spatial hashing to avoid quadratic complexity.
+</p>
+
+<p>
+On the rendering side, we explored a variety of shading techniques using GLSL shaders, including diffuse shading, Blinn-Phong lighting, texture mapping, bump mapping, displacement mapping, and environment-mapped reflections. We also implemented a custom shader to enhance the visual richness of the cloth with iridescent effects.
+</p>
+
+<p>
+One of the most interesting aspects of this assignment was observing how different physical parameters (such as spring stiffness, density, and damping) directly affect the behavior of the cloth. Additionally, implementing spatial hashing for self-collision demonstrated how algorithmic optimization can significantly improve performance in physically-based simulations.
+</p>
+
+<p>
+Overall, this assignment provided a comprehensive understanding of how physical simulation and rendering interact in computer graphics systems, bridging the gap between mathematical modeling and visually realistic results.
+</p>
+
+
+<h2>Part 1: Masses and Springs</h2>
+
+<p>In this part, we implemented a mass-spring system to model a piece of cloth. The cloth is discretized into a grid of point masses arranged in row-major order, where each point mass represents a small portion of the cloth. The positions of these masses are determined based on the cloth’s width, height, and orientation.</p>
+
+<p>For a horizontal cloth, point masses are placed on the xz-plane with a constant y-coordinate, while for a vertical cloth, point masses are placed on the xy-plane with a small random offset in the z-direction to avoid numerical issues during simulation.</p>
+
+<p>We then constructed three types of spring constraints between neighboring point masses:</p>
+
+<ul>
+<li>Structural springs connect each point mass to its immediate neighbors to the left and above, forming the basic grid structure.</li>
+<li>Shearing springs connect diagonal neighbors, providing resistance to shear deformation.</li>
+<li>Bending springs connect point masses that are two units apart, helping the cloth resist bending and maintain smooth curvature.</li>
+</ul>
+
+<p>To visualize the structure of these constraints, we rendered the cloth wireframe under different configurations:</p>
+
+<ul>
+<li>Without shearing constraints, the cloth appears as a regular grid composed of horizontal and vertical lines only.</li>
+<li>With only shearing constraints, the cloth forms a network of diagonal connections, creating an “X”-like pattern across the surface.</li>
+<li>With all constraints enabled, the cloth shows a dense triangular structure combining grid, diagonal, and long-range connections, resulting in a more stable and realistic configuration.</li>
+</ul>
+
+<p>These results confirm that each type of spring contributes differently to the physical behavior of the cloth.</p>
+
+<div class="image-row">
+<div class="image-box"><img src="images/WithoutShearing.png"><div class="caption">Without Shearing</div></div>
+<div class="image-box"><img src="images/OnlyShearing.png"><div class="caption">Only Shearing</div></div>
+<div class="image-box"><img src="images/full.png"><div class="caption">All Constraints</div></div>
+</div>
+
+
+<h2>Part 2: Simulation via Numerical Integration</h2>
+
+<p>Overview</p>
+
+<p>In this part, we simulated the physical behavior of cloth by modeling it as a system of point masses connected by springs. At each time step, we computed the total forces acting on each point mass and updated their positions using Verlet integration.</p>
+
+<p>There are two main types of forces in the system:</p>
+
+<h3>Force Computation</h3>
+
+<p>
+For each simulation step, we first reset the force vector of every point mass. Then, we applied:
+</p>
+
+<ul>
+<li>
+External forces:<br>
+These are computed by summing all external accelerations and multiplying by the mass of each point mass using Newton’s Second Law:
+</li>
+</ul>
+
+
+<p>\[ F = m \cdot a \]</p>
+
+<ul>
+<li>
+Spring forces:<br>
+For each spring, we computed the force using Hooke’s Law:
+</li>
+</ul>
+
+<p>\[ F = k_s \left(\|p_a - p_b\| - l_0\right) \]</p>
+
+<p>where:</p>
+
+<ul>
+<li>ks is the spring constant</li>
+<li>pa and pb are positions of the two connected point masses</li>
+<li>rest_length is the original length of the spring</li>
+</ul>
+
+<p>
+Bending springs were scaled by a factor (e.g., 0.2) to make them weaker than structural and shearing springs.
+</p>
+
+
+<h3>Verlet Integration</h3>
+
+<p>
+We used Verlet integration to update the position of each point mass:
+</p>
+
+<p>
+\[
+x_{\text{new}} = x + (1 - d)(x - x_{\text{last}}) + a \cdot dt^2
+\]
+</p>
+
+<p>where:</p>
+
+<ul>
+<li>x is the current position</li>
+<li>x_last is the previous position</li>
+<li>a is acceleration (F / m)</li>
+<li>d is the damping factor</li>
+<li>dt is the timestep</li>
+</ul>
+
+<p>
+This method is stable and avoids explicitly computing velocity.
+</p>
+
+<h3>Constraint Enforcement</h3>
+
+<p>
+To prevent unrealistic stretching, we enforced a constraint that limits each spring’s length to at most 10% longer than its rest length.
+</p>
+
+<p>
+If the current length exceeded this limit, we corrected the positions of the two connected point masses along the direction of the spring:
+</p>
+
+<ul>
+<li>If both masses are free → correction split equally</li>
+<li>If one is pinned → all correction applied to the free mass</li>
+<li>If both are pinned → no correction applied</li>
+</ul>
+
+<p>
+This constraint ensures stability and prevents the cloth from “exploding.”
+</p>
+
+<h3>Parameter Experiments</h3>
+
+<p>We experimented with different simulation parameters to observe their effects on cloth behavior.</p>
+
+<h4>Effect of Spring Constant (ks)</h4>
+
+<div class="image-row">
+
+  <div class="image-box">
+    <img src="images/ks500.png">
+    <div class="caption">Low ks (500): Soft cloth, large deformation</div>
+  </div>
+
+  <div class="image-box">
+    <img src="images/ks20000.png">
+    <div class="caption">High ks (20000): Stiff cloth, minimal deformation</div>
+  </div>
+
+</div>
+
+<h4>Effect of Density</h4>
+
+<div class="image-row">
+
+  <div class="image-box">
+    <img src="images/ds1.png">
+    <div class="caption">Low density (1): Light cloth</div>
+  </div>
+
+  <div class="image-box">
+    <img src="images/ds50.png">
+    <div class="caption">High density (50): Heavy cloth</div>
+  </div>
+
+</div>
+
+<h4>Effect of Damping</h4>
+
+<div class="image-row">
+
+  <div class="image-box">
+    <img class="gif" src="images/dam0.1.gif">
+    <div class="caption">Low damping: Oscillates a lot</div>
+  </div>
+
+  <div class="image-box">
+    <img class="gif" src="images/dam1.gif">
+    <div class="caption">High damping: Quickly stabilizes</div>
+  </div>
+
+</div>
+
+<h4>Final Resting State</h4>
+
+<div class="image-row">
+
+  <div class="image-box">
+    <img src="images/final_state.png">
+    <div class="caption">Final resting cloth (Pinned4)</div>
+  </div>
+
+</div>
+
+
+<h2>Part 3: Handling Collisions with Other Objects</h2>
+
+<p>
+In this part, we implemented collision handling between the cloth and external objects, specifically spheres and planes. The goal is to ensure that point masses do not penetrate these objects and instead remain on their surfaces with realistic physical behavior.
+</p>
+
+
+<h3>Sphere Collision</h3>
+
+<p>
+To handle collisions with a sphere, we first check whether a point mass lies inside the sphere by comparing its distance to the sphere’s center with the sphere’s radius.
+</p>
+
+<p>
+If a point mass is found inside the sphere, we compute a tangent point on the sphere surface by projecting the point mass onto the sphere along the direction from the sphere center. This ensures that the corrected position lies exactly on the surface.
+</p>
+
+<p>
+We then compute a correction vector from the point mass’s previous position to this tangent point. The new position is obtained by applying this correction scaled by a friction factor:
+</p>
+
+<p>
+\[
+\text{new_position} = \text{last_position} + (1 - f)\cdot \text{correction}
+\]
+</p>
+
+<p>
+This prevents the point mass from penetrating the sphere while also simulating energy loss due to friction.
+</p>
+
+
+<h3>Plane Collision</h3>
+
+<p>
+For plane collisions, we detect whether a point mass crosses the plane by checking if its position changes from one side of the plane to the other between time steps.
+</p>
+
+<p>
+If a crossing is detected, we compute the intersection point (tangent point) between the motion path and the plane. We then shift this point slightly along the plane normal using a small constant offset to ensure the point mass stays above the surface.
+</p>
+
+<p>
+Finally, we apply a correction similar to the sphere case, again incorporating friction:
+</p>
+
+<p>
+\[
+\text{new_position} = \text{last_position} + (1 - f)\cdot \text{correction}
+\]
+</p>
+
+<p>
+This ensures that the cloth rests naturally on the plane without penetrating it.
+</p>
+
+
+<h3>Effect of Spring Constant (ks) on Sphere</h3>
+
+<p>
+We experimented with different values of the spring constant to observe how stiffness affects the cloth behavior when draped over a sphere.
+</p>
+
+<ul>
+<li>
+Low ks (ks = 500):<br>
+The cloth is very soft and conforms closely to the shape of the sphere. It wraps tightly around the sphere and exhibits significant deformation.
+</li>
+
+<li>
+Medium ks (ks = 5000):<br>
+The cloth maintains a balance between flexibility and stiffness. It drapes naturally over the sphere with moderate deformation.
+</li>
+
+<li>
+High ks (ks = 50000):<br>
+The cloth becomes stiff and resists bending. It does not conform well to the sphere and instead forms a more rigid structure over it.
+</li>
+</ul>
+
+<p><b>Conclusion:</b><br>
+Lower ks results in more flexible cloth that better conforms to object shapes, while higher ks produces stiffer cloth with less deformation.
+</p>
+
+
+<div class="image-row">
+
+  <div class="image-box">
+    <img src="images/part3ks500.png">
+    <div class="caption">ks = 500 (soft wrapping)</div>
+  </div>
+
+  <div class="image-box">
+    <img src="images/part3ks5000.png">
+    <div class="caption">ks = 5000 (balanced)</div>
+  </div>
+
+  <div class="image-box">
+    <img src="images/part3ks50000.png">
+    <div class="caption">ks = 50000 (stiff cloth)</div>
+  </div>
+
+</div>
+
+
+<h3>Cloth on Plane</h3>
+
+<p>
+In the plane collision test, the cloth falls under gravity and settles onto the plane surface. The cloth lies flat without penetrating the plane, demonstrating correct collision handling.
+</p>
+
+<p>
+The use of a small surface offset ensures that the cloth remains slightly above the plane, preventing numerical instability and visual artifacts.
+</p>
+
+<div class="image-row">
+
+  <div class="image-box">
+    <img src="images/plane.png">
+    <div class="caption">Cloth resting on plane</div>
+  </div>
+
+</div>
+
+
+<h3>Conclusion</h3>
+
+<p>
+The collision system successfully prevents penetration and produces realistic interactions between the cloth and external objects.
+</p>
+
+<h2>Part 4: Handling Self-Collisions</h2>
+
+<p>
+In this part, we implemented cloth self-collision so that different layers of the cloth can fold onto one another without clipping through each other. A brute-force solution would compare every pair of point masses at every simulation step, which would cost \(O(n^2)\) time and become expensive very quickly for a \(50 \times 50\) cloth. Instead, we used spatial hashing to restrict collision checks to only nearby point masses, which makes the method much more practical for interactive simulation.
+</p>
+
+<h3>Implementation Overview</h3>
+
+<p>
+Our implementation touches all three Part 4 functions in <code>cloth.cpp</code>. In <code>simulate</code>, after Verlet integration updates the point mass positions, we rebuild the spatial hash table and then call <code>self_collide</code> on every unpinned point mass. This means self-collision is handled before collisions with the plane and before the final spring-length correction step, so any overlaps introduced by integration are pushed apart early in the time step.
+</p>
+
+<ul>
+<li><code>hash_position</code> maps a 3D point mass position to a unique hash key representing one spatial box.</li>
+<li><code>build_spatial_map</code> clears the old map and inserts every point mass pointer into the bucket for its current box.</li>
+<li><code>self_collide</code> looks up only the point masses in the same bucket, computes separation corrections for close neighbors, averages them, and applies the result scaled by <code>simulation_steps</code>.</li>
+</ul>
+
+<h3>Spatial Hashing</h3>
+
+<p>
+Let the cloth width and height be \(W\) and \(H\), and let the number of point masses along those directions be \(N_w\) and \(N_h\). We partition space into boxes whose dimensions are
+</p>
+
+<p>
+\[
+w = \frac{3W}{N_w}, \qquad
+h = \frac{3H}{N_h}, \qquad
+t = \max(w, h)
+\]
+</p>
+
+<p>
+The factor of \(3\) is the same empirical constant suggested in the assignment. It makes each spatial bucket large enough to capture likely self-collision candidates while still keeping the number of point masses per bucket small. For a point mass at position \(p = (x, y, z)\), we quantize its coordinates into bucket indices:
+</p>
+
+<p>
+\[
+i_x = \left\lfloor \frac{x}{w} \right\rfloor, \qquad
+i_y = \left\lfloor \frac{y}{h} \right\rfloor, \qquad
+i_z = \left\lfloor \frac{z}{t} \right\rfloor
+\]
+</p>
+
+<p>
+We then encode these indices into a single key:
+</p>
+
+<p>
+\[
+\mathrm{hash}(p) = i_x B^2 + i_y B + i_z,
+\qquad
+B = 4 \max(N_w, N_h) + 1
+\]
+</p>
+
+<p>
+This is exactly the strategy used in our <code>hash_position</code> function. In code, we compute the bucket coordinates with <code>floor</code> and store the final value as a float key. Although the key is numeric, conceptually it represents one unique 3D box in space. Then <code>build_spatial_map</code> loops over all point masses, computes the hash of each current position, and appends a pointer to that point mass into the vector stored at that key. Because the cloth moves every frame, the entire map is rebuilt from scratch each simulation step.
+</p>
+
+<h3>Self-Collision Response</h3>
+
+<p>
+Once the spatial map is built, each point mass only needs to check the candidates in its own bucket instead of checking every point mass in the cloth. This is the key efficiency improvement of the method. In <code>self_collide</code>, we first look up the bucket corresponding to the current point mass, skip the point mass itself, and ignore zero-distance cases to avoid dividing by zero when normalizing the direction vector.
+</p>
+
+<p>
+For any candidate point mass \(c\), let the current point mass position be \(p\), let the cloth thickness be \(\tau\), and let
+</p>
+
+<p>
+\[
+d = \|p - c\|
+\]
+</p>
+
+<p>
+If \(0 < d < 2\tau\), then the two point masses are too close, so we compute a correction that pushes the current point mass away from the candidate:
+</p>
+
+<p>
+\[
+\Delta_i = \frac{p - c}{\|p - c\|}(2\tau - d)
+\]
+</p>
+
+<p>
+If there are \(m\) valid collisions for one point mass in that bucket, we average all pairwise corrections and divide by the number of simulation substeps \(s\):
+</p>
+
+<p>
+\[
+\Delta p = \frac{1}{ms} \sum_{i=1}^{m} \Delta_i
+\]
+</p>
+
+<p>
+This matches our code directly: we accumulate all correction vectors in <code>correction</code>, count the number of valid neighbors in <code>collisions</code>, and finally update the point mass by <code>correction / collisions / simulation_steps</code>. Averaging prevents an overly large displacement when many nearby point masses contribute at once, and dividing by <code>simulation_steps</code> makes the response more stable across substeps.
+</p>
+
+<h3>Self-Collision Sequence</h3>
+
+<p>
+The three screenshots below document the required full self-collision sequence using the default <code>selfCollision.json</code> scene. In all three images, the important result is that the cloth folds into layers while maintaining visible separation between those layers rather than tunneling through itself.
+</p>
+
+<p>
+In the early screenshot, the lower portion of the cloth has just begun to buckle as it falls toward the plane, so we can already see the first self-contact forming near the bottom edge. In the middle screenshot, the cloth has produced several stacked folds, and the layered structure is much more obvious: neighboring sheets of cloth come close, but they remain separated instead of intersecting. In the final screenshot, the cloth reaches a more rest-like configuration on the plane. It is still slightly bouncy, but that is expected because our self-collision response pushes overlapping layers apart without adding any additional pairwise damping. The key success criterion is that the cloth remains folded on itself rather than passing through itself.
+</p>
+
+<div class="image-row">
+
+  <div class="image-box">
+    <img src="images/part4_self_collision_early.png">
+    <div class="caption">Early self-collision</div>
+  </div>
+
+  <div class="image-box">
+    <img src="images/part4_self_collision_middle.png">
+    <div class="caption">Mid-stage folding</div>
+  </div>
+
+  <div class="image-box">
+    <img src="images/part4_self_collision_rest.png">
+    <div class="caption">Late resting state</div>
+  </div>
+
+</div>
+
+<h3>Effect of Density</h3>
+
+<p>
+We next varied density while keeping the rest of the setup fixed. In our simulator, the mass of each point mass is proportional to the cloth density, so changing density primarily changes the amount of inertia the cloth carries as it falls and collides with itself.
+</p>
+
+<p>
+With <code>density = 15</code>, the cloth is relatively light. It falls more gently, folds develop more gradually, and the final pile looks looser and less compressed. The layers still fold onto one another correctly, but the overall structure feels softer and less forceful because there is less momentum in the system.
+</p>
+
+<p>
+With <code>density = 300</code>, the cloth is much heavier. It falls faster, hits both itself and the plane with more momentum, and compresses into a tighter stack of folds. The increased inertia makes the collapse look more dramatic, and the lower layers are packed together more strongly. Even so, the self-collision logic still prevents visible interpenetration.
+</p>
+
+<div class="image-row">
+
+  <div class="image-box">
+    <img src="images/part4_density_15.png">
+    <div class="caption">density = 15: lighter folds</div>
+  </div>
+
+  <div class="image-box">
+    <img src="images/part4_density_300.png">
+    <div class="caption">density = 300: heavier collapse</div>
+  </div>
+
+</div>
+
+<h3>Effect of Spring Constant</h3>
+
+<p>
+We also varied the spring constant \(k_s\), which controls how strongly the springs resist deformation. This parameter changes how easy it is for the cloth to crumple while the self-collision code keeps the different layers from passing through one another.
+</p>
+
+<p>
+With <code>ks = 500</code>, the cloth is much softer and more compliant. It bends readily, produces thinner wrinkles, and collapses into deeper and more irregular folds as it falls onto itself. The self-collision response is therefore resolving many close contacts in a highly deformable sheet.
+</p>
+
+<p>
+With <code>ks = 50000</code>, the cloth is much stiffer. It resists stretching and bending more strongly, so the folds are broader and the cloth preserves more of its original shape during the fall. Compared to the soft-cloth case, the final structure looks less crumpled and more rigid. This comparison shows that self-collision and stiffness interact closely: the collision code enforces separation between layers in both cases, while \(k_s\) determines whether the resulting folded shape is soft and wrinkled or broad and stiff.
+</p>
+
+<div class="image-row">
+
+  <div class="image-box">
+    <img src="images/part4_ks_500.png">
+    <div class="caption">ks = 500: soft cloth</div>
+  </div>
+
+  <div class="image-box">
+    <img src="images/part4_ks_50000.png">
+    <div class="caption">ks = 50000: stiffer cloth</div>
+  </div>
+
+</div>
+
+<h2>Part 5: Shaders</h2>
+
+<p>
+In this part, we moved the material work from the CPU side of the simulator into GLSL shader programs. The vertex shader is responsible for transforming each vertex into world and clip space while carrying along the normal, tangent, and UV coordinates. After rasterization, the fragment shader receives interpolated per-fragment values and uses them to evaluate lighting, sample textures, perturb normals, or look up reflected radiance from the cubemap. In practice, this separation lets us keep the cloth simulation exactly the same as before while swapping only the appearance model.
+</p>
+
+<p>
+For the core lighting shaders, we kept the same point light for every experiment and changed only the shading logic. Diffuse shading uses the Lambertian term
+</p>
+
+<p>
+\[
+L_d = k_d \frac{I}{r^2} \max(0, \mathbf{n}\cdot\mathbf{l}),
+\]
+</p>
+
+<p>
+while the full Blinn-Phong shader adds both an ambient term and a halfway-vector specular term:
+</p>
+
+<p>
+\[
+L = k_a I_a + k_d \frac{I}{r^2} \max(0, \mathbf{n}\cdot\mathbf{l}) + k_s \frac{I}{r^2} \max(0, \mathbf{n}\cdot\mathbf{h})^p.
+\]
+</p>
+
+<h3>Diffuse Shading</h3>
+
+<p>
+In <code>Diffuse.frag</code>, we normalize the interpolated normal, compute the light direction from the fragment position to the point light, and scale the cosine term by the inverse-square light falloff. The result is a matte response that clearly shows the large folds of the cloth but does not produce any glossy highlights.
+</p>
+
+<div class="image-row">
+
+  <div class="image-box">
+    <img src="images/part5_diffuse_cloth.png">
+    <div class="caption">Diffuse shader on the cloth</div>
+  </div>
+
+</div>
+
+<h3>Blinn-Phong Shading</h3>
+
+<p>
+In <code>Phong.frag</code>, we reuse the diffuse term and add a small ambient component plus a specular highlight computed from the halfway vector between the light direction and the view direction. To make the required breakdown images easy to capture, we also added three small fragment variants, <code>PhongAmbient.frag</code>, <code>PhongDiffuse.frag</code>, and <code>PhongSpecular.frag</code>, that isolate the individual terms while keeping the same coefficients as the full shader.
+</p>
+
+<p>
+The ambient-only image is nearly flat and mainly prevents fully black shadowed regions. The diffuse-only image recovers the large-scale shape of the cloth because brightness depends only on how directly each fragment faces the light. The specular-only image concentrates energy into view-dependent highlights, so it mostly disappears except on folds whose normals align with the halfway vector. The full Blinn-Phong result combines all three pieces and produces a much more convincing satin-like cloth appearance than diffuse shading alone.
+</p>
+
+<div class="image-row">
+
+  <div class="image-box">
+    <img src="images/part5_phong_ambient.png">
+    <div class="caption">Ambient only</div>
+  </div>
+
+  <div class="image-box">
+    <img src="images/part5_phong_diffuse.png">
+    <div class="caption">Diffuse only</div>
+  </div>
+
+  <div class="image-box">
+    <img src="images/part5_phong_specular.png">
+    <div class="caption">Specular only</div>
+  </div>
+
+  <div class="image-box">
+    <img src="images/part5_phong_full.png">
+    <div class="caption">Full Blinn-Phong</div>
+  </div>
+
+</div>
+
+<h3>Texture Mapping</h3>
+
+<p>
+For the texture shader, <code>Texture.frag</code> simply samples <code>u_texture_1</code> at the interpolated UV coordinate and outputs that color directly. Instead of reusing the default texture, we generated a new quilted brocade texture and saved it to <code>textures/texture_part5_albedo.png</code>, then bound it to <code>u_texture_1</code> in the simulator. Because the cloth mesh already carries a clean UV parameterization, the new texture wraps naturally over the draped surface and makes the folds much easier to read.
+</p>
+
+<div class="image-row">
+
+  <div class="image-box">
+    <img src="images/part5_texture_custom.png">
+    <div class="caption">Texture shader with our custom albedo map</div>
+  </div>
+
+</div>
+
+<h3>Bump and Displacement Mapping</h3>
+
+<p>
+For both <code>Bump.frag</code> and <code>Displacement.frag</code>, we work in tangent space. Starting from the interpolated tangent, bitangent, and normal basis, we sample a custom height map from <code>u_texture_2</code>, which we rebound to <code>textures/texture_part5_height.png</code> so that this part does not use the default <code>texture_2.png</code>. We approximate the local height derivatives by finite differences:
+</p>
+
+<p>
+\[
+dU = \big(h(u+\tfrac{1}{w}, v) - h(u,v)\big) k_h k_n,\qquad
+dV = \big(h(u, v+\tfrac{1}{h}) - h(u,v)\big) k_h k_n,
+\]
+</p>
+
+<p>
+then build the perturbed tangent-space normal \(( -dU, -dV, 1)\) and map it back to world space with the TBN matrix. In the displacement shader we additionally offset the vertex position itself along the original normal, so the lighting change is accompanied by a real geometric change in the surface.
+</p>
+
+<p>
+The visual difference between the two approaches is clearest on the sphere. Bump mapping changes shading only, so the sphere silhouette stays smooth even when the fine pattern looks embossed. Displacement mapping changes the actual mesh, so the raised quilting affects the silhouette and becomes much more convincing at grazing angles. This also makes mesh resolution matter more: on the coarse sphere the displacement pattern looks faceted because there are too few vertices to carry the height field, while the finer sphere preserves the quilted shape much more cleanly.
+</p>
+
+<h4>Base Results</h4>
+
+<div class="image-row">
+
+  <div class="image-box">
+    <img src="images/part5_bump_cloth.png">
+    <div class="caption">Bump mapping on the cloth</div>
+  </div>
+
+  <div class="image-box">
+    <img src="images/part5_bump_sphere_128.png">
+    <div class="caption">Bump mapping on the sphere (\(-o 128 -a 128\))</div>
+  </div>
+
+  <div class="image-box">
+    <img src="images/part5_displacement_sphere_128.png">
+    <div class="caption">Displacement mapping on the sphere (\(-o 128 -a 128\))</div>
+  </div>
+
+</div>
+
+<h4>Sphere Coarseness Comparison</h4>
+
+<div class="image-row">
+
+  <div class="image-box">
+    <img src="images/part5_bump_sphere_16.png">
+    <div class="caption">Bump on coarse sphere (\(-o 16 -a 16\))</div>
+  </div>
+
+  <div class="image-box">
+    <img src="images/part5_bump_sphere_128.png">
+    <div class="caption">Bump on fine sphere (\(-o 128 -a 128\))</div>
+  </div>
+
+  <div class="image-box">
+    <img src="images/part5_displacement_sphere_16.png">
+    <div class="caption">Displacement on coarse sphere (\(-o 16 -a 16\))</div>
+  </div>
+
+  <div class="image-box">
+    <img src="images/part5_displacement_sphere_128.png">
+    <div class="caption">Displacement on fine sphere (\(-o 128 -a 128\))</div>
+  </div>
+
+</div>
+
+<h3>Environment-Mapped Reflections</h3>
+
+<p>
+In <code>Mirror.frag</code>, we compute the eye ray from the camera position to the fragment, reflect it around the interpolated surface normal, and sample the cubemap in that reflected direction. This produces a clean mirror response without tracing any secondary rays. On the cloth, the reflected environment bends with the folds and makes the draped geometry easy to see. On the sphere, the same shader gives the expected polished-metal look because the normal field is smooth and symmetric.
+</p>
+
+<div class="image-row">
+
+  <div class="image-box">
+    <img src="images/part5_mirror_cloth.png">
+    <div class="caption">Mirror shader on the cloth</div>
+  </div>
+
+  <div class="image-box">
+    <img src="images/part5_mirror_sphere.png">
+    <div class="caption">Mirror shader on the sphere</div>
+  </div>
+
+</div>
+
+<h2>Part 5 Extra Credit: Custom Shader</h2>
+
+<p>
+For the extra credit, we implemented a custom iridescent fabric shader in <code>Custom.vert</code> and <code>Custom.frag</code>. The vertex stage applies a small geometry lift from the same custom height map used for displacement mapping, while the fragment stage combines four ideas from the main part of the assignment: the custom albedo texture, tangent-space normal perturbation, Blinn-Phong lighting, and view-dependent cubemap reflections.
+</p>
+
+<p>
+The goal was to make something that still reads as cloth, but with a more stylized satin or brocade finish. The albedo map supplies the base woven pattern, the height map adds small embossed seams, the specular response is modulated by a grayscale mask so some regions catch stronger highlights than others, and a Fresnel-like rim term blends in the environment map near grazing angles. Compared to the plain Phong shader, the result feels more layered: the cloth keeps its local textile pattern, but the folds also pick up colored reflections from the cubemap.
+</p>
+
+<div class="image-row">
+
+  <div class="image-box">
+    <img src="images/part5_custom_shader.png">
+    <div class="caption">Custom iridescent fabric shader</div>
+  </div>
+
+</div>
+
+<h2>Homework 4 Extra Credit: Additional Cloth Features</h2>
+
+<p>
+For the cloth-simulation extra credit, we focused on four additions that were independent, easy to demonstrate, and small enough to fit naturally into the existing simulator: a spatially varying wind field, an optional time-varying gust mode, keyboard-controlled motion for collision objects, and a new axis-aligned box primitive. We deliberately avoided a much larger BVH-style self-collision rewrite because the existing codebase does not already provide that infrastructure, and it would have carried much more risk than the assignment needed.
+</p>
+
+<h3>1. Spatially Varying Wind</h3>
+
+<p>
+The first feature adds wind as a true position-dependent force instead of a single constant acceleration. We implemented this in <code>cloth.cpp</code> by sampling a wind vector at each triangle centroid and then distributing the resulting aerodynamic force equally to the three incident point masses. The sampled field starts from one dominant wind direction and then modulates both magnitude and a small cross-breeze term with sines and cosines of the centroid position, so different parts of the cloth feel slightly different pushes at the same moment.
+</p>
+
+<p>
+In compact form, the wind we apply can be summarized as
+</p>
+
+<p>
+\[
+\mathbf{w}(x,y,z,t) = \mathbf{d}\,s \, m_{\text{space}}(x,y,z) + \Delta_{\text{space}}(x,y,z),
+\]
+</p>
+
+<p>
+where \(\mathbf{d}\) is the base direction, \(s\) is the user-controlled strength, \(m_{\text{space}}\) is a spatial modulation term, and \(\Delta_{\text{space}}\) adds a smaller sideways variation. This makes the cloth ripple instead of simply leaning as one rigid sheet.
+</p>
+
+<p>
+This counts as one extra feature on its own because the cloth already behaves differently before gust mode is even enabled: with wind disabled, the hanging sheet in <code>scene/extra_wind.json</code> mostly settles into a straight drape, while with spatial wind enabled it bows outward and develops uneven folds across its width.
+</p>
+
+<div class="image-row">
+
+  <div class="image-box">
+    <img src="images/extra_wind_off.png">
+    <div class="caption">Baseline: hanging cloth with wind disabled</div>
+  </div>
+
+  <div class="image-box">
+    <img src="images/extra_wind_spatial.png">
+    <div class="caption">Spatial wind enabled: the cloth bends and ripples unevenly</div>
+  </div>
+
+</div>
+
+<h3>2. Time-Varying Gust Mode</h3>
+
+<p>
+On top of the spatial wind field, we added a separate gust mode that multiplies the wind force by a sinusoidal time factor. The implementation reuses the same spatial field but applies an additional
+</p>
+
+<p>
+\[
+g(t) = 1 + A \sin(2 \pi f t)
+\]
+</p>
+
+<p>
+term, where \(A\) is the gust amplitude and \(f\) is the gust frequency. The simulator keeps a running simulation time in <code>clothSimulator.cpp</code>, passes that value into the cloth step, and lets the wind field stay steady or oscillate depending on the GUI toggle.
+</p>
+
+<p>
+We treated this as a separate extra-credit feature because it changes the behavior over time rather than over space. With the same hanging-cloth scene and the same base wind strength, steady spatial wind produces a mostly stable bent shape, while gust mode repeatedly strengthens and weakens the force so the cloth pulses forward and relaxes back.
+</p>
+
+<div class="image-row">
+
+  <div class="image-box">
+    <img src="images/extra_wind_spatial.png">
+    <div class="caption">Baseline for this feature: steady spatial wind</div>
+  </div>
+
+  <div class="image-box">
+    <img src="images/extra_wind_gust.png">
+    <div class="caption">Gust mode enabled: larger time-varying billows</div>
+  </div>
+
+</div>
+
+<h3>3. Movable Collision Sphere</h3>
+
+<p>
+The third feature adds interactive motion for collision objects. We extended the collision-object base class with optional movement and reset hooks, marked specific scene objects as movable in JSON, and then added keyboard controls in <code>clothSimulator.cpp</code>. In our showcase scene, <code>scene/extra_movable_sphere.json</code>, the sphere starts slightly behind a pinned vertical cloth and can be translated with <code>A/D</code> along \(x\), <code>W/S</code> along \(z\), and <code>Q/E</code> along \(y\).
+</p>
+
+<p>
+This is a distinct extra-credit feature because the cloth is no longer only reacting to static primitives. Once the sphere is moved into the sheet, collisions are recomputed against the new sphere position every simulation step, so the cloth stretches and slides over a changing obstacle rather than only settling onto a fixed one.
+</p>
+
+<div class="image-row">
+
+  <div class="image-box">
+    <img src="images/extra_movable_sphere_rest.png">
+    <div class="caption">Baseline: movable sphere at its initial position</div>
+  </div>
+
+  <div class="image-box">
+    <img src="images/extra_movable_sphere_push.png">
+    <div class="caption">After moving the sphere into the cloth with the keyboard</div>
+  </div>
+
+</div>
+
+<h3>4. Axis-Aligned Box Primitive</h3>
+
+<p>
+The last feature adds a new collision primitive, an axis-aligned box, implemented in <code>src/collision/box.cpp</code> and parsed from scene files with the new <code>box</code> key. For collision handling, we first check whether a point mass is already inside the box. If it is, we project it to the nearest face. Otherwise, we test whether the segment from the previous point-mass position to the current one intersects the box and place the point mass back on the entering face with a small offset, using the same friction-style correction pattern as the sphere and plane code.
+</p>
+
+<p>
+This counts independently because it adds a genuinely new primitive rather than modifying the behavior of an existing one. The comparison below uses a plane-only baseline and then a plane-plus-box scene. Without the box, the cloth lands flat on the floor. With the box present, it catches first on the top face and then drapes over the sharp edges, which is a different contact pattern from the plane or sphere scenes in the main assignment.
+</p>
+
+<div class="image-row">
+
+  <div class="image-box">
+    <img src="images/extra_box_baseline.png">
+    <div class="caption">Baseline: cloth falling onto the plane only</div>
+  </div>
+
+  <div class="image-box">
+    <img src="images/extra_box_enabled.png">
+    <div class="caption">Box enabled: cloth drapes over the new primitive</div>
+  </div>
+
+</div>
+
+<h2>Challenges and Lessons Learned</h2>
+
+<p>
+During the implementation, we encountered several challenges that required careful debugging and reasoning.
+</p>
+
+<ul>
+<li>
+<b>Numerical instability in simulation:</b>
+At early stages, the cloth would occasionally “explode” due to large forces or unstable integration. This was resolved by enforcing a maximum spring elongation constraint (10%) and carefully tuning damping parameters.
+</li>
+
+<li>
+<b>Self-collision performance:</b>
+A naive O(n²) approach was computationally infeasible for dense cloth grids. Implementing spatial hashing significantly reduced the complexity by limiting collision checks to nearby point masses.
+</li>
+
+<li>
+<b>Collision artifacts:</b>
+Without a small surface offset, point masses could stick to or penetrate planes and spheres. Introducing a small offset along the normal direction improved both stability and visual realism.
+</li>
+
+<li>
+<b>Shader debugging:</b>
+Implementing GLSL shaders required careful handling of coordinate spaces (world space vs tangent space). Errors in TBN matrix construction initially caused incorrect lighting results, which were fixed through step-by-step visualization of intermediate components.
+</li>
+</ul>
+
+<p>
+Through these challenges, we gained a deeper understanding of the importance of numerical stability, efficient data structures, and coordinate transformations in graphics systems.
+</p>
+
+</div>
+</body>
+</html>
